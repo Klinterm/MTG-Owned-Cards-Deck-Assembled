@@ -14,3 +14,6 @@ Only including other lands if they are:
 # v10: Fixes
 - Bug fixes
 - Added rownumber
+
+# Next:
+Need to add mana cost  & UI fixing (aspect ratio etc)  
