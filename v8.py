@@ -367,11 +367,31 @@ class MoxfieldAnalyzerApp:
         card_frame.pack(fill="x", padx=10, pady=5)
 
         self.card_name_var = tk.StringVar()
+        card_name_label = tk.Label(card_frame, text="Card Name:", bg="#f0f0f0")
+        card_name_label.pack(side="left", padx=5)
         card_entry = tk.Entry(card_frame, textvariable=self.card_name_var, width=40)
         card_entry.pack(side="left", padx=5, fill="x", expand=True)
 
+        # Card type selection
+        card_type_frame = tk.Frame(auto_include_frame, bg="#f0f0f0")
+        card_type_frame.pack(fill="x", padx=10, pady=5)
+
+        card_type_label = tk.Label(card_type_frame, text="Card Type:", bg="#f0f0f0")
+        card_type_label.pack(side="left", padx=5)
+
+        self.card_type_var = tk.StringVar(value="Unknown")
+        card_types = ["Unknown", "Land", "Creature", "Artifact", "Enchantment", "Instant", "Sorcery"]
+        card_type_menu = ttk.Combobox(
+            card_type_frame,
+            textvariable=self.card_type_var,
+            values=card_types,
+            state="readonly",
+            width=15
+        )
+        card_type_menu.pack(side="left", padx=5)
+
         add_button = tk.Button(
-            card_frame,
+            card_type_frame,
             text="Add Card",
             command=self.add_auto_include,
             bg="#e0e0e0"
@@ -408,6 +428,9 @@ class MoxfieldAnalyzerApp:
         # Dictionary to store checkbox variables
         self.checkbox_vars = {}
 
+        # Dictionary to store card type variables for each card
+        self.card_type_vars = {}
+
         # Button frame
         button_frame = tk.Frame(auto_include_frame, bg="#f0f0f0")
         button_frame.pack(pady=5)
@@ -419,6 +442,14 @@ class MoxfieldAnalyzerApp:
             bg="#e0e0e0"
         )
         remove_button.pack(side="left", padx=5)
+
+        update_button = tk.Button(
+            button_frame,
+            text="Update Card Types",
+            command=self.update_card_types,
+            bg="#e0e0e0"
+        )
+        update_button.pack(side="left", padx=5)
 
         # Update auto-include list when color changes
         self.auto_include_color_var.trace_add("write", lambda *args: self.update_auto_include_list())
@@ -485,6 +516,7 @@ class MoxfieldAnalyzerApp:
         for widget in self.checkbox_frame.winfo_children():
             widget.destroy()
         self.checkbox_vars.clear()
+        self.card_type_vars.clear()
 
         color = self.auto_include_color_var.get()
 
@@ -509,18 +541,61 @@ class MoxfieldAnalyzerApp:
                 # Add the checkbox
                 cb = tk.Checkbutton(
                     card_entry_frame,
-                    text=card,
+                    text="",
                     variable=var,
                     bg="#f0f0f0",
                     command=lambda c=card, v=var: self.toggle_card_enabled(c, v)
                 )
                 cb.pack(side="left", padx=5)
 
+                # Create a label for the card name
+                card_label = tk.Label(
+                    card_entry_frame,
+                    text=card,
+                    width=30,
+                    anchor="w",
+                    bg="#f0f0f0"
+                )
+                card_label.pack(side="left", padx=5)
+
+                # Create a dropdown for card type
+                card_type = self.auto_include_manager.get_card_type(card)
+                type_var = tk.StringVar(value=card_type)
+                self.card_type_vars[card] = type_var
+
+                card_types = ["Unknown", "Land", "Creature", "Artifact", "Enchantment", "Instant", "Sorcery"]
+                type_menu = ttk.Combobox(
+                    card_entry_frame,
+                    textvariable=type_var,
+                    values=card_types,
+                    state="readonly",
+                    width=12
+                )
+                type_menu.pack(side="left", padx=5)
+
             # Update the canvas scroll region
             self.checkbox_frame.update_idletasks()
             self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
         else:
             print(f"WARNING: Color {color} not found in auto_includes dictionary!")
+
+    def update_card_types(self):
+        """Update card types for all cards in the current view"""
+        color = self.auto_include_color_var.get()
+        updated_count = 0
+
+        for card, type_var in self.card_type_vars.items():
+            new_type = type_var.get()
+            old_type = self.auto_include_manager.get_card_type(card)
+
+            if new_type != old_type:
+                self.auto_include_manager.set_card_type(card, new_type)
+                updated_count += 1
+
+        if updated_count > 0:
+            self.log(f"Updated {updated_count} card types")
+        else:
+            self.log("No card types were changed")
 
     def toggle_card_enabled(self, card, var):
         """Toggle whether a card is enabled/disabled for auto-include"""
@@ -540,12 +615,13 @@ class MoxfieldAnalyzerApp:
         """Add a card to auto-includes for the selected color"""
         color = self.auto_include_color_var.get()
         card_name = self.card_name_var.get().strip()
+        card_type = self.card_type_var.get()
 
         if card_name:
-            if self.auto_include_manager.add_auto_include(color, card_name):
+            if self.auto_include_manager.add_auto_include(color, card_name, card_type):
                 self.update_auto_include_list()
                 self.card_name_var.set("")
-                self.log(f"Added {card_name} to {color} auto-includes")
+                self.log(f"Added {card_name} ({card_type}) to {color} auto-includes")
             else:
                 self.log(f"Card {card_name} already in {color} auto-includes")
 
@@ -1514,9 +1590,12 @@ class MoxfieldAnalyzer:
                 scraped_card, freq = normalized_card_freq[norm_card]
                 # Use the scraped card name but mark it as an auto-include
                 scraped_card_owned = scraped_card in self.owned_cards or card in self.owned_cards
-                card_type = self.card_types.get(scraped_card, "Unknown")
+
+                # Use the card type from auto_include_manager if it's an auto-include card
                 if is_auto_include:
-                    card_type = "Unknown"  # Set auto-include cards to Unknown as requested
+                    card_type = self.auto_include_manager.get_card_type(card)
+                else:
+                    card_type = self.card_types.get(scraped_card, "Unknown")
 
                 deck_data.append({
                     'Rank': idx,  # Add card rank
@@ -1534,9 +1613,10 @@ class MoxfieldAnalyzer:
                 print(f"Using scraped card '{scraped_card}' (freq: {freq}) instead of auto-include '{card}'")
             else:
                 # For auto-includes that don't exist in scraped decks, set frequency to 0
-                card_type = self.card_types.get(card, "Unknown")
                 if is_auto_include:
-                    card_type = "Unknown"  # Set auto-include cards to Unknown as requested
+                    card_type = self.auto_include_manager.get_card_type(card)
+                else:
+                    card_type = self.card_types.get(card, "Unknown")
 
                 deck_data.append({
                     'Rank': idx,  # Add card rank
@@ -1597,6 +1677,7 @@ class AutoIncludeManager:
         self.output_dir = output_dir
         self.auto_include_file = f"{output_dir}/auto_includes.json"
         self.disabled_file = f"{output_dir}/disabled_auto_includes.json"
+        self.auto_include_types_file = f"{output_dir}/auto_include_types.json"
         self.auto_includes = {
             # Single colors
             "WHITE": [],
@@ -1618,6 +1699,9 @@ class AutoIncludeManager:
             "RED_GREEN": []
         }
 
+        # Store card types for auto-includes
+        self.card_types = {}
+
         # Track disabled cards for each color
         self.disabled_cards = {color: [] for color in self.auto_includes.keys()}
 
@@ -1637,6 +1721,7 @@ class AutoIncludeManager:
 
         self.load_auto_includes()
         self.load_disabled_cards()
+        self.load_card_types()
 
         print(f"After initialization, GREY auto-includes: {self.auto_includes['GREY']}")
         print(f"Disabled GREY cards: {self.disabled_cards['GREY']}")
@@ -1687,6 +1772,20 @@ class AutoIncludeManager:
         else:
             print(f"Disabled cards file not found: {self.disabled_file}, using defaults")
 
+    def load_card_types(self):
+        """Load card types from file"""
+        if os.path.exists(self.auto_include_types_file):
+            try:
+                with open(self.auto_include_types_file, 'r') as f:
+                    loaded_data = json.load(f)
+                    print(f"Loaded card types from {self.auto_include_types_file}")
+                    self.card_types = loaded_data
+            except Exception as e:
+                print(f"Error loading card types: {e}")
+        else:
+            print(f"Card types file not found: {self.auto_include_types_file}, initializing empty dictionary")
+            self.card_types = {}
+
     def save_auto_includes(self):
         """Save auto-include cards to file"""
         try:
@@ -1705,6 +1804,15 @@ class AutoIncludeManager:
                 print(f"Saved disabled cards to {self.disabled_file}")
         except Exception as e:
             print(f"Error saving disabled cards: {e}")
+
+    def save_card_types(self):
+        """Save card types to file"""
+        try:
+            with open(self.auto_include_types_file, 'w') as f:
+                json.dump(self.card_types, f, indent=2)
+                print(f"Saved card types to {self.auto_include_types_file}")
+        except Exception as e:
+            print(f"Error saving card types: {e}")
 
     def get_auto_includes(self, colors):
         """Get auto-include cards for given colors (excluding disabled ones)"""
@@ -1795,6 +1903,16 @@ class AutoIncludeManager:
         print(f"--- END AUTO-INCLUDES LOOKUP ---\n")
         return result
 
+    def get_card_type(self, card_name):
+        """Get the stored type for a card, or 'Unknown' if not set"""
+        return self.card_types.get(card_name, "Unknown")
+
+    def set_card_type(self, card_name, card_type):
+        """Set the type for a card"""
+        self.card_types[card_name] = card_type
+        self.save_card_types()
+        return True
+
     def is_card_enabled(self, color, card_name):
         """Check if a card is enabled for the given color"""
         if color in self.disabled_cards:
@@ -1846,9 +1964,9 @@ class AutoIncludeManager:
         self.save_disabled_cards()
         return True
 
-    def add_auto_include(self, color, card_name):
-        """Add a card to auto-includes for a color"""
-        print(f"Attempting to add card '{card_name}' to color '{color}'")
+    def add_auto_include(self, color, card_name, card_type="Unknown"):
+        """Add a card to auto-includes for a color with optional card type"""
+        print(f"Attempting to add card '{card_name}' to color '{color}' with type '{card_type}'")
 
         # Handle two-color combinations properly
         if "_" in color:
@@ -1867,6 +1985,8 @@ class AutoIncludeManager:
 
             if normalized_name not in self.auto_includes[color]:
                 self.auto_includes[color].append(normalized_name)
+                # Store the card type
+                self.set_card_type(normalized_name, card_type)
                 print(f"Added '{normalized_name}' to {color}, now has {len(self.auto_includes[color])} cards")
                 self.save_auto_includes()
                 return True
