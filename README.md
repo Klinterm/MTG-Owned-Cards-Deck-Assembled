@@ -17,7 +17,11 @@ Only including other lands if they are:
 
 # V11: colors 
 - Colors working but still some bugs
-- Need to add colors to includes
-- 
+
+# V12: Fixes
+- Multiple fixes, added 
+
 # Next:
 Need to add mana cost  & UI fixing (aspect ratio etc)  
+need to add color to auto includes
+fix mana fixing.
