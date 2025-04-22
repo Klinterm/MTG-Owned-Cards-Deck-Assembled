@@ -19,7 +19,7 @@ Only including other lands if they are:
 - Colors working but still some bugs
 
 # V12: Fixes
-- Multiple fixes, added 
+- Multiple fixes, & added commander ID explanation
 
 # Next:
 Need to add mana cost  & UI fixing (aspect ratio etc)  
