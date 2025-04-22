@@ -20,6 +20,7 @@ Only including other lands if they are:
 
 # V12: Fixes
 - Multiple fixes, & added commander ID explanation
+- Auto included also fixed
 
 # Next:
 Need to add mana cost  & UI fixing (aspect ratio etc)  
