@@ -22,7 +22,11 @@ Only including other lands if they are:
 - Multiple fixes, & added commander ID explanation
 - Auto included also fixed
 
+# V13: Auto include color coding fix  
+- Latest working before extra parameters like:
+-   Minimum amount of decks for include
+-   sorting
+-   Format
+
 # Next:
-Need to add mana cost  & UI fixing (aspect ratio etc)  
-need to add color to auto includes
-fix mana fixing.
+fix mana ratio lands
